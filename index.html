@@ -8,6 +8,12 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 600px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         h1 { font-size: 1.5rem; text-align: center; margin-bottom: 20px; color: #bb86fc; }
+        
+        .import-section { margin-bottom: 20px; padding: 15px; background: #2c2c2c; border-radius: 8px; border: 1px dashed #bb86fc; text-align: center; }
+        .import-section p { margin-top: 0; font-size: 14px; color: #a0a0a0; }
+        .btn-import { background: #03dac6; color: #121212; width: 100%; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; }
+        .btn-import:hover { background: #00b3a6; }
+        
         .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
         input[type="text"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #2c2c2c; color: #fff; font-size: 16px; }
         input[type="text"]:focus { outline: none; border-color: #bb86fc; }
@@ -32,8 +38,15 @@
 <div class="container">
     <h1>Frases Prontas</h1>
     
+    <!-- NOVA ÁREA DE IMPORTAÇÃO -->
+    <div class="import-section">
+        <p>Migrar Frases:</p>
+        <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="importJSON(event)">
+        <button class="btn-import" onclick="document.getElementById('jsonFileInput').click()">Importar Arquivo JSON (notes.json)</button>
+    </div>
+
     <div class="input-group">
-        <input type="text" id="phraseInput" placeholder="Digite uma frase ou pergunta..." onkeypress="handleKeyPress(event)">
+        <input type="text" id="phraseInput" placeholder="Ou digite uma nova frase..." onkeypress="handleKeyPress(event)">
         <button class="btn-add" onclick="addPhrase()">Adicionar</button>
     </div>
 
@@ -41,23 +54,26 @@
 </div>
 
 <script>
-    // Carrega as frases do armazenamento local ou inicia vazio
+    // Carrega as frases do armazenamento local
     let phrases = JSON.parse(localStorage.getItem('myPhrases')) || [];
 
-    // Função para renderizar a lista na tela
+    // Renderiza a lista
     function renderList() {
         const list = document.getElementById('phraseList');
-        list.innerHTML = ''; // Limpa a lista atual
+        list.innerHTML = ''; 
 
         phrases.forEach((phrase, index) => {
             const li = document.createElement('li');
             
+            // Escapa aspas simples para não quebrar o HTML
+            const safePhrase = phrase.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
             li.innerHTML = `
                 <span class="phrase-text">${phrase}</span>
                 <div class="actions">
                     <button class="btn-icon" onclick="moveUp(${index})" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
                     <button class="btn-icon" onclick="moveDown(${index})" title="Descer" ${index === phrases.length - 1 ? 'disabled' : ''}>↓</button>
-                    <button class="btn-copy" onclick="copyPhrase(this, '${phrase.replace(/'/g, "\\'")}')">Copiar</button>
+                    <button class="btn-copy" onclick="copyPhrase(this, '${safePhrase}')">Copiar</button>
                     <button class="btn-delete" onclick="deletePhrase(${index})">X</button>
                 </div>
             `;
@@ -65,7 +81,7 @@
         });
     }
 
-    // Adiciona uma nova frase
+    // Adiciona nova frase
     function addPhrase() {
         const input = document.getElementById('phraseInput');
         const text = input.value.trim();
@@ -76,12 +92,10 @@
         }
     }
 
-    // Permite adicionar apertando Enter
     function handleKeyPress(event) {
         if (event.key === 'Enter') addPhrase();
     }
 
-    // Deleta uma frase
     function deletePhrase(index) {
         if(confirm('Apagar esta frase?')) {
             phrases.splice(index, 1);
@@ -89,7 +103,6 @@
         }
     }
 
-    // Move para cima
     function moveUp(index) {
         if (index > 0) {
             [phrases[index - 1], phrases[index]] = [phrases[index], phrases[index - 1]];
@@ -97,7 +110,6 @@
         }
     }
 
-    // Move para baixo
     function moveDown(index) {
         if (index < phrases.length - 1) {
             [phrases[index + 1], phrases[index]] = [phrases[index], phrases[index + 1]];
@@ -105,29 +117,80 @@
         }
     }
 
-    // Copia para a área de transferência
     function copyPhrase(btn, text) {
+        // Usa um textarea temporário como fallback para navegadores antigos/mobile
+        if (!navigator.clipboard) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showCopied(btn);
+            return;
+        }
+
         navigator.clipboard.writeText(text).then(() => {
-            const originalText = btn.innerText;
-            btn.innerText = 'Copiado!';
-            btn.classList.add('copied');
-            
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.classList.remove('copied');
-            }, 2000);
+            showCopied(btn);
         }).catch(err => {
             alert('Erro ao copiar: ' + err);
         });
     }
 
-    // Salva no localStorage e atualiza a tela
+    function showCopied(btn) {
+        const originalText = btn.innerText;
+        btn.innerText = 'Copiado!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.classList.remove('copied');
+        }, 2000);
+    }
+
     function saveAndRender() {
         localStorage.setItem('myPhrases', JSON.stringify(phrases));
         renderList();
     }
 
-    // Renderiza a lista ao carregar a página
+    // --- NOVA FUNÇÃO DE IMPORTAÇÃO DO CLIPZ ---
+    function importJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                
+                // Verifica se é o formato do ClipZ
+                if (data.notes) {
+                    // Transforma o objeto de notas em um array
+                    let notesArray = Object.values(data.notes);
+                    
+                    // Ordena pelo ID original (que parece seguir a ordem de criação, do mais antigo para o mais novo)
+                    notesArray.sort((a, b) => a.id - b.id);
+
+                    // Extrai apenas os textos
+                    let newPhrases = notesArray.map(note => note.textContent).filter(text => text && text.trim() !== "");
+
+                    // Junta com as frases atuais e remove duplicatas
+                    phrases = [...new Set([...phrases, ...newPhrases])];
+                    
+                    saveAndRender();
+                    alert(`Sucesso! ${newPhrases.length} frases importadas do ClipZ.`);
+                } else {
+                    alert('Formato inválido. Certifique-se de que é o arquivo notes.json do ClipZ.');
+                }
+            } catch (error) {
+                alert('Erro ao ler o arquivo. Verifique se é um JSON válido.');
+            }
+            // Limpa o input para permitir importar novamente se quiser
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    // Inicializa a lista
     renderList();
 </script>
 
