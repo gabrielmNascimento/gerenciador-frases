@@ -7,8 +7,11 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 600px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        h1 { font-size: 1.5rem; text-align: center; margin-bottom: 20px; color: #bb86fc; }
+        h1 { font-size: 1.5rem; text-align: center; margin-bottom: 10px; color: #bb86fc; }
         
+        .legend { text-align: center; font-size: 13px; color: #a0a0a0; margin-bottom: 20px; }
+        .legend span { margin: 0 5px; font-size: 16px; }
+
         .import-section { margin-bottom: 20px; padding: 15px; background: #2c2c2c; border-radius: 8px; border: 1px dashed #bb86fc; text-align: center; }
         .import-section p { margin-top: 0; font-size: 14px; color: #a0a0a0; }
         .btn-import { background: #03dac6; color: #121212; width: 100%; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; }
@@ -20,12 +23,18 @@
         button { cursor: pointer; border: none; border-radius: 8px; padding: 12px 16px; font-weight: bold; font-size: 16px; transition: background 0.2s; }
         .btn-add { background: #bb86fc; color: #121212; }
         .btn-add:hover { background: #9a67ea; }
+        
         ul { list-style: none; padding: 0; margin: 0; }
         li { background: #2c2c2c; margin-bottom: 10px; padding: 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #333; }
-        .phrase-text { flex: 1; font-size: 15px; word-break: break-word; }
-        .actions { display: flex; gap: 5px; }
+        
+        .phrase-text { flex: 1; font-size: 15px; word-break: break-word; display: flex; align-items: flex-start; gap: 8px; }
+        .weight-icon { cursor: pointer; font-size: 18px; user-select: none; transition: transform 0.1s; }
+        .weight-icon:hover { transform: scale(1.2); }
+        
+        .actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
         .btn-icon { background: #333; color: #fff; padding: 8px 10px; font-size: 14px; border-radius: 6px; }
-        .btn-icon:hover { background: #444; }
+        .btn-icon:hover:not(:disabled) { background: #444; }
+        .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
         .btn-copy { background: #03dac6; color: #121212; }
         .btn-copy:hover { background: #00b3a6; }
         .btn-copy.copied { background: #4caf50; color: white; }
@@ -38,9 +47,15 @@
 <div class="container">
     <h1>Frases Prontas</h1>
     
-    <!-- NOVA ÁREA DE IMPORTAÇÃO -->
+    <div class="legend">
+        Clique no ícone para mudar o peso:<br>
+        <span>🪶 Leve (Topo)</span> | 
+        <span>⚖️ Normal (Meio)</span> | 
+        <span>🧱 Pesado (Fim)</span>
+    </div>
+
     <div class="import-section">
-        <p>Migrar Frases:</p>
+        <p>Migre as frases do ClipZ de uma vez:</p>
         <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="importJSON(event)">
         <button class="btn-import" onclick="document.getElementById('jsonFileInput').click()">Importar Arquivo JSON (notes.json)</button>
     </div>
@@ -54,39 +69,104 @@
 </div>
 
 <script>
-    // Carrega as frases do armazenamento local
-    let phrases = JSON.parse(localStorage.getItem('myPhrases')) || [];
+    // 1. Carrega as frases e converte do formato antigo (apenas string) para o novo formato (objeto com peso)
+    let storedPhrases = JSON.parse(localStorage.getItem('myPhrases')) || [];
+    let phrases = storedPhrases.map(item => {
+        if (typeof item === 'string') {
+            return { text: item, weight: 'normal' };
+        }
+        return item;
+    });
+
+    // Função para ordenar: Leve (0) -> Normal (1) -> Pesado (2)
+    function sortPhrases() {
+        const weightOrder = { 'light': 0, 'normal': 1, 'heavy': 2 };
+        phrases.sort((a, b) => weightOrder[a.weight] - weightOrder[b.weight]);
+    }
 
     // Renderiza a lista
     function renderList() {
         const list = document.getElementById('phraseList');
         list.innerHTML = ''; 
 
-        phrases.forEach((phrase, index) => {
+        phrases.forEach((phraseObj, index) => {
             const li = document.createElement('li');
             
-            // Escapa aspas simples para não quebrar o HTML
-            const safePhrase = phrase.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            // Texto e Ícone de Peso
+            const textContainer = document.createElement('div');
+            textContainer.className = 'phrase-text';
 
-            li.innerHTML = `
-                <span class="phrase-text">${phrase}</span>
-                <div class="actions">
-                    <button class="btn-icon" onclick="moveUp(${index})" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
-                    <button class="btn-icon" onclick="moveDown(${index})" title="Descer" ${index === phrases.length - 1 ? 'disabled' : ''}>↓</button>
-                    <button class="btn-copy" onclick="copyPhrase(this, '${safePhrase}')">Copiar</button>
-                    <button class="btn-delete" onclick="deletePhrase(${index})">X</button>
-                </div>
-            `;
+            const weightIcon = document.createElement('span');
+            weightIcon.className = 'weight-icon';
+            weightIcon.title = 'Clique para mudar o peso';
+            
+            if (phraseObj.weight === 'light') weightIcon.innerText = '🪶';
+            else if (phraseObj.weight === 'heavy') weightIcon.innerText = '🧱';
+            else weightIcon.innerText = '⚖️';
+
+            weightIcon.onclick = () => cycleWeight(index);
+
+            const textNode = document.createTextNode(phraseObj.text);
+            
+            textContainer.appendChild(weightIcon);
+            textContainer.appendChild(textNode);
+
+            // Botões de Ação
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            // Botão Subir (↑)
+            const upBtn = document.createElement('button');
+            upBtn.className = 'btn-icon';
+            upBtn.innerText = '↑';
+            upBtn.disabled = index === 0 || phrases[index].weight !== phrases[index-1].weight;
+            upBtn.onclick = () => moveUp(index);
+
+            // Botão Descer (↓)
+            const downBtn = document.createElement('button');
+            downBtn.className = 'btn-icon';
+            downBtn.innerText = '↓';
+            downBtn.disabled = index === phrases.length - 1 || phrases[index].weight !== phrases[index+1].weight;
+            downBtn.onclick = () => moveDown(index);
+
+            // Botão Copiar
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn-copy';
+            copyBtn.innerText = 'Copiar';
+            copyBtn.onclick = (e) => copyPhrase(e.target, phraseObj.text);
+
+            // Botão Deletar
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete';
+            delBtn.innerText = 'X';
+            delBtn.onclick = () => deletePhrase(index);
+
+            actions.appendChild(upBtn);
+            actions.appendChild(downBtn);
+            actions.appendChild(copyBtn);
+            actions.appendChild(delBtn);
+
+            li.appendChild(textContainer);
+            li.appendChild(actions);
             list.appendChild(li);
         });
     }
 
-    // Adiciona nova frase
+    // Alterna o peso: Normal -> Leve -> Pesado -> Normal
+    function cycleWeight(index) {
+        const current = phrases[index].weight;
+        if (current === 'normal') phrases[index].weight = 'light';
+        else if (current === 'light') phrases[index].weight = 'heavy';
+        else phrases[index].weight = 'normal';
+        
+        saveAndRender(); // Isso já vai reordenar a lista automaticamente
+    }
+
     function addPhrase() {
         const input = document.getElementById('phraseInput');
         const text = input.value.trim();
         if (text) {
-            phrases.push(text);
+            phrases.push({ text: text, weight: 'normal' });
             saveAndRender();
             input.value = '';
         }
@@ -118,7 +198,6 @@
     }
 
     function copyPhrase(btn, text) {
-        // Usa um textarea temporário como fallback para navegadores antigos/mobile
         if (!navigator.clipboard) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
@@ -148,11 +227,11 @@
     }
 
     function saveAndRender() {
+        sortPhrases(); // Reordena antes de salvar
         localStorage.setItem('myPhrases', JSON.stringify(phrases));
         renderList();
     }
 
-    // --- NOVA FUNÇÃO DE IMPORTAÇÃO DO CLIPZ ---
     function importJSON(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -162,35 +241,37 @@
             try {
                 const data = JSON.parse(e.target.result);
                 
-                // Verifica se é o formato do ClipZ
                 if (data.notes) {
-                    // Transforma o objeto de notas em um array
                     let notesArray = Object.values(data.notes);
-                    
-                    // Ordena pelo ID original (que parece seguir a ordem de criação, do mais antigo para o mais novo)
                     notesArray.sort((a, b) => a.id - b.id);
 
-                    // Extrai apenas os textos
-                    let newPhrases = notesArray.map(note => note.textContent).filter(text => text && text.trim() !== "");
+                    let newPhrases = notesArray
+                        .map(note => ({ text: note.textContent, weight: 'normal' }))
+                        .filter(item => item.text && item.text.trim() !== "");
 
-                    // Junta com as frases atuais e remove duplicatas
-                    phrases = [...new Set([...phrases, ...newPhrases])];
+                    // Evita duplicatas exatas
+                    let existingTexts = phrases.map(p => p.text);
+                    newPhrases.forEach(np => {
+                        if (!existingTexts.includes(np.text)) {
+                            phrases.push(np);
+                        }
+                    });
                     
                     saveAndRender();
-                    alert(`Sucesso! ${newPhrases.length} frases importadas do ClipZ.`);
+                    alert(`Sucesso! ${newPhrases.length} frases importadas.`);
                 } else {
-                    alert('Formato inválido. Certifique-se de que é o arquivo notes.json do ClipZ.');
+                    alert('Formato inválido.');
                 }
             } catch (error) {
-                alert('Erro ao ler o arquivo. Verifique se é um JSON válido.');
+                alert('Erro ao ler o arquivo.');
             }
-            // Limpa o input para permitir importar novamente se quiser
             event.target.value = '';
         };
         reader.readAsText(file);
     }
 
-    // Inicializa a lista
+    // Inicializa
+    sortPhrases();
     renderList();
 </script>
 
