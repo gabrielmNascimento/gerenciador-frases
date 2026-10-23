@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Frases</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 600px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        h1 { font-size: 1.5rem; text-align: center; margin-bottom: 20px; color: #bb86fc; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input[type="text"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #2c2c2c; color: #fff; font-size: 16px; }
+        input[type="text"]:focus { outline: none; border-color: #bb86fc; }
+        button { cursor: pointer; border: none; border-radius: 8px; padding: 12px 16px; font-weight: bold; font-size: 16px; transition: background 0.2s; }
+        .btn-add { background: #bb86fc; color: #121212; }
+        .btn-add:hover { background: #9a67ea; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { background: #2c2c2c; margin-bottom: 10px; padding: 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #333; }
+        .phrase-text { flex: 1; font-size: 15px; word-break: break-word; }
+        .actions { display: flex; gap: 5px; }
+        .btn-icon { background: #333; color: #fff; padding: 8px 10px; font-size: 14px; border-radius: 6px; }
+        .btn-icon:hover { background: #444; }
+        .btn-copy { background: #03dac6; color: #121212; }
+        .btn-copy:hover { background: #00b3a6; }
+        .btn-copy.copied { background: #4caf50; color: white; }
+        .btn-delete { background: #cf6679; color: white; }
+        .btn-delete:hover { background: #b00020; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Frases Prontas</h1>
+    
+    <div class="input-group">
+        <input type="text" id="phraseInput" placeholder="Digite uma frase ou pergunta..." onkeypress="handleKeyPress(event)">
+        <button class="btn-add" onclick="addPhrase()">Adicionar</button>
+    </div>
+
+    <ul id="phraseList"></ul>
+</div>
+
+<script>
+    // Carrega as frases do armazenamento local ou inicia vazio
+    let phrases = JSON.parse(localStorage.getItem('myPhrases')) || [];
+
+    // Função para renderizar a lista na tela
+    function renderList() {
+        const list = document.getElementById('phraseList');
+        list.innerHTML = ''; // Limpa a lista atual
+
+        phrases.forEach((phrase, index) => {
+            const li = document.createElement('li');
+            
+            li.innerHTML = `
+                <span class="phrase-text">${phrase}</span>
+                <div class="actions">
+                    <button class="btn-icon" onclick="moveUp(${index})" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button class="btn-icon" onclick="moveDown(${index})" title="Descer" ${index === phrases.length - 1 ? 'disabled' : ''}>↓</button>
+                    <button class="btn-copy" onclick="copyPhrase(this, '${phrase.replace(/'/g, "\\'")}')">Copiar</button>
+                    <button class="btn-delete" onclick="deletePhrase(${index})">X</button>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    // Adiciona uma nova frase
+    function addPhrase() {
+        const input = document.getElementById('phraseInput');
+        const text = input.value.trim();
+        if (text) {
+            phrases.push(text);
+            saveAndRender();
+            input.value = '';
+        }
+    }
+
+    // Permite adicionar apertando Enter
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') addPhrase();
+    }
+
+    // Deleta uma frase
+    function deletePhrase(index) {
+        if(confirm('Apagar esta frase?')) {
+            phrases.splice(index, 1);
+            saveAndRender();
+        }
+    }
+
+    // Move para cima
+    function moveUp(index) {
+        if (index > 0) {
+            [phrases[index - 1], phrases[index]] = [phrases[index], phrases[index - 1]];
+            saveAndRender();
+        }
+    }
+
+    // Move para baixo
+    function moveDown(index) {
+        if (index < phrases.length - 1) {
+            [phrases[index + 1], phrases[index]] = [phrases[index], phrases[index + 1]];
+            saveAndRender();
+        }
+    }
+
+    // Copia para a área de transferência
+    function copyPhrase(btn, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.innerText;
+            btn.innerText = 'Copiado!';
+            btn.classList.add('copied');
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.classList.remove('copied');
+            }, 2000);
+        }).catch(err => {
+            alert('Erro ao copiar: ' + err);
+        });
+    }
+
+    // Salva no localStorage e atualiza a tela
+    function saveAndRender() {
+        localStorage.setItem('myPhrases', JSON.stringify(phrases));
+        renderList();
+    }
+
+    // Renderiza a lista ao carregar a página
+    renderList();
+</script>
+
+</body>
+</html>
