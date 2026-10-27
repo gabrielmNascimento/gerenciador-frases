@@ -16,6 +16,8 @@
         .import-section p { margin-top: 0; font-size: 14px; color: #a0a0a0; }
         .btn-import { background: #03dac6; color: #121212; width: 100%; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; }
         .btn-import:hover { background: #00b3a6; }
+        .btn-export { background: #333; color: #fff; width: 100%; margin-bottom: 20px; }
+        .btn-export:hover { background: #444; }
         
         .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
         input[type="text"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #2c2c2c; color: #fff; font-size: 16px; }
@@ -64,6 +66,8 @@
         <input type="text" id="phraseInput" placeholder="Ou digite uma nova frase..." onkeypress="handleKeyPress(event)">
         <button class="btn-add" onclick="addPhrase()">Adicionar</button>
     </div>
+
+    <button class="btn-export" onclick="exportPhrases()">Exportar frases (.txt)</button>
 
     <ul id="phraseList"></ul>
 </div>
@@ -230,6 +234,19 @@
         sortPhrases(); // Reordena antes de salvar
         localStorage.setItem('myPhrases', JSON.stringify(phrases));
         renderList();
+    }
+
+    function exportPhrases() {
+        const content = phrases.map(phrase => phrase.text).join('\n');
+        const file = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'frases.txt';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 
     function importJSON(event) {
